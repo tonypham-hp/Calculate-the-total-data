@@ -57,15 +57,34 @@ def process_actual(fiscal_year = "FY25"):
 
     for month_folder in months:
         month_path = os.path.join(ACTUAL_ROOT, month_folder)
-        excel_file = [f for f in os.listdir(month_path) if re.match(r"1\.\s*Theo\s*dõi\s*Xuất\s*kho\s*T\d+\.xlsx", f)]
+        
+        #excel_file = [f for f in os.listdir(month_path) if re.match(r"1\.\s*Theo\s*dõi\s*Xuất\s*kho\s*T\d+\.xlsx", f)]
+        #if not excel_file:
+        #    continue
+
+        #excel_file = excel_file[0]
+        #file_path = os.path.join(month_path, excel_file)
+        excel_file = None
+        for f in os.listdir(month_path):
+            #dieu kien file .xlsx co chu "theo doi xuat kho" trong name
+            if f.endswith(".xlsx") and "Theo dõi Xuất kho" in f:
+                excel_file = f
+                break
         if not excel_file:
             continue
-
-        excel_file = excel_file[0]
         file_path = os.path.join(month_path, excel_file)
-        #excel = pd.ExcelFile(file_path)
-        month_num = re.search(r'T(\d+)', excel_file).group(1)
-        sheet_name = f"XUẤT T{month_num}" #chon sheet chu xuat
+
+        #month_num = re.search(r'T(\d+)', excel_file).group(1)
+        #sheet_name = f"XUẤT T{month_num}" #chon sheet chu xuat
+        excel = pd.ExcelFile(file_path)
+        sheet_name = None
+        for sheet in excel.sheet_names:
+            #sheet co chua "XUAT T"
+            if "XUẤT T" in sheet.upper():
+                sheet_name = sheet
+                break
+        if not sheet_name:
+            continue
 
         try:
             if sheet_name in pd.ExcelFile(file_path).sheet_names:
@@ -78,18 +97,29 @@ def process_actual(fiscal_year = "FY25"):
     
     yearly_data = {}
     for product_idx, product in enumerate(sorted(all_products), 1):
-        for mounth_folder in months:
+        for month_folder in months:
             month_path = os.path.join(ACTUAL_ROOT, month_folder)
-            excel_files = [f for f in os.listdir(month_path) if re.match(r"1\.\s*Theo\s*dõi\s*Xuất\s*kho\s*T\d+\.xlsx", f)]
-
-            if not excel_files:
+            #excel_files = [f for f in os.listdir(month_path) if re.match(r"1\.\s*Theo\s*dõi\s*Xuất\s*kho\s*T\d+\.xlsx", f)]
+            excel_file = None
+            for f in os.listdir(month_path):
+                if f.endswith(".xlsx") and "Theo dõi Xuất kho" in f:
+                    excel_file = f
+                    break
+            if not excel_file:
                 yearly_data.setdefault(product, {}).setdefault(month_folder, {c: 0 for c in CATEGORIES})
                 continue
-
-            excel_file = excel_files[0]
             file_path = os.path.join(month_path, excel_file)
-            month_name = f"XUẤT T{month_num}"
 
+            excel = pd.ExcelFile(file_path)
+            sheet_name = None
+            for sheet in excel.sheet_names:
+                if "XUẤT T" in sheet.upper():
+                    sheet_name = sheet
+                    break
+            if not sheet_name:
+                yearly_data.setdefault(product, {}).setdefault(month_folder, {c: 0 for c in CATEGORIES})
+                continue
+           
             try:
                 df = pd.read_excel(file_path, sheet_name=sheet_name, usecols="M,J,W")
                 df.columns = ["Mã Line", "Tổng tiền", "Phân loại"]
