@@ -87,7 +87,7 @@ def process_actual(fiscal_year = "FY25"):
     #quét tất cả các tháng từ 312
     all_products = set()
 
-    for month_folder in months:
+    for month_folder in months: 
         month_path = os.path.join(ACTUAL_ROOT, month_folder)
         #tìm theo file "theo dõi xuất kho"
         #excel_file = [f for f in os.listdir(month_path) if re.match(r"1\.\s*Theo\s*dõi\s*Xuất\s*kho\s*T\d+\.xlsx", f)]
