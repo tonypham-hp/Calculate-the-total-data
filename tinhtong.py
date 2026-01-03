@@ -7,7 +7,7 @@ from openpyxl import load_workbook, Workbook
 #ROOT_PATH = r"\\10.147.32.1\MA_Div\Data_Link"
 #ROOT_PATH = r"Documents"
 ROOT_PATH = r"c:\Users\vnintern09\Documents"
-
+ 
 #cac nam FY
 #ACTUAL_ROOT = os.path.join(ROOT_PATH, "CostDX-BM-TH-ACT", "XUẤT KHO FY25")
 #tong ket
