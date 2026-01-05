@@ -170,8 +170,8 @@ def process_actual(fiscal_year = "FY25"):
                 continue
            
             try:
-                df = pd.read_excel(file_path, sheet_name=sheet_name, usecols="M,J,W")
-                df.columns = ["Mã Line", "Tổng tiền", "Phân loại"]
+                df = pd.read_excel(file_path, sheet_name=sheet_name, usecols="J,M,W")
+                df.columns = ["Tổng tiền", "Mã Line", "Phân loại"]
                 
                 # CHỈ LẤY DÒNG CỦA MÃ NÀY
                 df["Ma_str"] = df["Mã Line"].astype(str).str.strip()
