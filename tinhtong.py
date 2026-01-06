@@ -245,59 +245,93 @@ def process_actual(fiscal_year = "FY25"):
 # P2: cap nhat du lieu vao file budget
 #-------------------------------------
 
-def update_budget(fiscal_year="FY25"): 
-    #budget_folder = os.path.join(BUDGET_PATH, fiscal_year)
-    temp_files = [f for f in os.listdir(TEMP_PATH) if f.endswith(f".{fiscal_year}.xlsx")]
-    print(f"PHAN 2: Cap nhat {len(temp_files)} file tam")
-
-    if not os.path.exists(BUDGET_PATH):
-        print(f"Khong co {BUDGET_PATH}")
+def update_budget(fiscal_year="FY25"):
+    print("\n=== PHẦN 2: CẬP NHẬT BUDGET ===")
+    
+    # Kiểm tra thư mục TEMP
+    if not os.path.exists(TEMP_PATH):
+        print(f"Không tìm thấy {TEMP_PATH}")
         return
     
-    #temp_files = [f for f in os.listdir(TEMP_PATH) if f.endswith(f".{fiscal_year}.xlsx")]
-
-    for temp_file in temp_files:
+    # Lấy tất cả file row.*.FY25.xlsx
+    temp_files = [f for f in os.listdir(TEMP_PATH) if f.startswith("row.") and f.endswith(f".{fiscal_year}.xlsx")]
+    print(f"Tìm thấy {len(temp_files)} file row trong Temp:")
+    for f in temp_files[:3]:  # In 3 file đầu
+        print(f"  - {f}")
+    if len(temp_files) > 3:
+        print(f"  ... và {len(temp_files)-3} file nữa")
+    
+    if not temp_files:
+        print("Không có file row nào để update!")
+        return
+    
+    # Kiểm tra thư mục BUDGET
+    if not os.path.exists(BUDGET_PATH):
+        print(f"Không tìm thấy {BUDGET_PATH}")
+        return
+    
+    update_count = 0
+    for temp_idx, temp_file in enumerate(temp_files, 1):
+        # Lấy mã sản phẩm từ tên file: row.461.FY25.xlsx → "461"
         product = temp_file.split(".")[1]
+        print(f"\n[{temp_idx}/{len(temp_files)}] Cập nhật MÃ {product}: {temp_file}")
+        
         temp_path = os.path.join(TEMP_PATH, temp_file)
         df_temp = pd.read_excel(temp_path)
-
+        print(f"Đọc file row OK: {len(df_temp)} dòng")
+        
+        # Tìm file budget tương ứng: 461.25.xlsx
         budget_file = os.path.join(BUDGET_PATH, f"{product}.25.xlsx")
         if not os.path.exists(budget_file):
-            print(f"  Khong co {budget_file}")
+            print(f" Không có budget file: {budget_file}")
             continue
-
+        
+        print(f"  Mở budget file: {budget_file}")
         wb = load_workbook(budget_file)
-
+        
+        # Với mỗi THÁNG trong file row
         for idx, row in df_temp.iterrows():
-            month_folder = str(row["Month"])
-            budget_sheet = MONTH_MAPPING.get(month_folder)
-
-            if budget_sheet and budget_sheet in wb.sheetnames:
-                ws = wb[budget_sheet]
-
-                for r in range(2, ws.max_row + 1):
-                    item = (
-                        str(ws[f"F{r}"].value).strip().lower()
-                        if ws[f"F{r}"].value
-                        else ""
-                    )
-                    remark_raw = (
-                        str(ws[f"N{r}"].value).strip()
-                        if ws[f"N{r}"].value
-                        else ""
-                    )
-
-                    if item == "xuất kho":
-                        remark_key = normalize_category(remark_raw)
-                        if remark_key and remark_key in CATEGORIES:
-                            value = float(row[remark_key])
-                            ws[f"I{r}"].value = value
+            month_folder = str(row["Month"])  # "Tháng 04.2025"
+            budget_sheet_name = MONTH_MAPPING.get(month_folder)  # "APR"
+            
+            if not budget_sheet_name or budget_sheet_name not in wb.sheetnames:
+                print(f"  Skip tháng {month_folder} (sheet {budget_sheet_name} không tồn tại)")
+                continue
+            
+            ws = wb[budget_sheet_name]
+            print(f" Update sheet '{budget_sheet_name}' ({month_folder})")
+            
+            # Duyệt TẤT CẢ dòng trong sheet budget
+            for r in range(2, ws.max_row + 1):  # Bắt đầu từ dòng 2 (bỏ header)
+                # Cột F: Kiểm tra "xuất kho"
+                item_cell = ws[f"F{r}"]
+                item = str(item_cell.value).strip().lower() if item_cell.value else ""
+                
+                if item == "xuất kho":
+                    # Cột N: Phân loại (BM, PM, CM, TH, Tiêu hao...)
+                    remark_cell = ws[f"N{r}"]
+                    remark_raw = str(remark_cell.value).strip() if remark_cell.value else ""
+                    
+                    # Chuẩn hóa phân loại
+                    cat_key = normalize_category(remark_raw)
+                    if cat_key and cat_key in CATEGORIES:
+                        # Lấy giá trị từ file row tương ứng
+                        value = float(row[cat_key])
+                        
+                        # Ghi vào cột I
+                        ws[f"I{r}"].value = value
+                        update_count += 1
+                        print(f"Dòng {r}: {remark_raw} → {cat_key} = {value:,.0f}")
+                    else:
+                        print(f"Dòng {r}: Phân loại '{remark_raw}' không hợp lệ")
         
+        # Lưu file budget
         wb.save(budget_file)
-        print(f"  OK cap nhat {product}.25.xlsx")
-        
-    print("PHAN 2 HOAN THANH")
-
+        print(f" Lưu budget file: {product}.25.xlsx")
+    
+    print(f"\n=== PHẦN 2 HOÀN THÀNH ===")
+    print(f"Tổng cộng: {update_count} ô dữ liệu đã update")
+    print(f"{len(temp_files)} file budget đã được cập nhật")
 
 def main():
     process_actual("FY25")
