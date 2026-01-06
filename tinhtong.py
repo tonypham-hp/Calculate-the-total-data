@@ -67,7 +67,7 @@ def normalize_category(raw_value):
                   
 def process_actual(fiscal_year = "FY25"):
     print("phan 1 bat dau")
-    #actual_folder = os.path.join(ACTUAL_PATH, f"XUẤT T{fiscal_year}")
+    print(f"ACTUAL_ROOT: {ACTUAL_ROOT}")
     if not os.path.exists(ACTUAL_ROOT):
         #khong tim thay thu muc
         print(f"khong co {ACTUAL_ROOT}")
@@ -80,22 +80,18 @@ def process_actual(fiscal_year = "FY25"):
         [f for f in os.listdir(ACTUAL_ROOT) if f in MONTH_MAPPING], 
         key=lambda x: list(MONTH_MAPPING.keys()).index(x)
     )
-    #months = sorted ([f for f in os.listdir(ACTUAL_ROOT) if re.match(r"Tháng\s+\d{2}\.2025", f)])
-
-    #yearly_data = {}  # {product: {month: {cat: value}}}
+    print(f"tim thay {len(months)} thang: {months}")
 
     #quét tất cả các tháng từ 312
-    all_products = set()
+    all_products = []
+    print("\n=== quet tat ca ma line theo thu tu ===")
+    
+    for month_idx, month_folder in enumerate(months, 1):
+        print(f"\n[{month_idx}/{len(months)}] quet thang: {month_folder}")
 
-    for month_folder in months: 
         month_path = os.path.join(ACTUAL_ROOT, month_folder)
         #tìm theo file "theo dõi xuất kho"
-        #excel_file = [f for f in os.listdir(month_path) if re.match(r"1\.\s*Theo\s*dõi\s*Xuất\s*kho\s*T\d+\.xlsx", f)]
-        #if not excel_file:
-        #    continue
 
-        #excel_file = excel_file[0]
-        #file_path = os.path.join(month_path, excel_file)
         excel_file = None
         for f in os.listdir(month_path):
             #dieu kien file .xlsx co chu "theo doi xuat kho" trong name
@@ -103,12 +99,12 @@ def process_actual(fiscal_year = "FY25"):
                 excel_file = f
                 break
         if not excel_file:
+            print(f"khong co file theo doi xuat kho")
             continue
+        print(f" file: {excel_file}")
         file_path = os.path.join(month_path, excel_file)
 
         #tim sheet chứa XUẤT T
-        #month_num = re.search(r'T(\d+)', excel_file).group(1)
-        #sheet_name = f"XUẤT T{month_num}" #chon sheet chu xuat
         excel = pd.ExcelFile(file_path)
         sheet_name = None
         for sheet in excel.sheet_names:
@@ -117,44 +113,66 @@ def process_actual(fiscal_year = "FY25"):
                 sheet_name = sheet
                 break
         if not sheet_name:
+            print(f"khong co sheet xuat T")
             continue
+        print(f"sheet: {sheet_name}")
 
         try:
-            if sheet_name in pd.ExcelFile(file_path).sheet_names:
-                df = pd.read_excel(file_path, sheet_name=sheet_name, usecols="J,M,W")
-                df.columns = ["Tổng tiền", "Mã Line", "Phân loại"]
-                df_valid = df[df["Mã Line"] != 312].dropna(subset=["Mã Line"])
-                #all_products.update(df_valid["Mã Line"].astype(str).str.strip().unique())
-                all_products_list = []
-                for value in df_valid["Mã Line"].unique():
-                    try:
-                        code = int(float(value))
-                        if code != 312:
-                            all_products_list.append(str(code))
-                    except:
-                        continue
-                all_products.update(set(all_products_list))
-        except:
-            continue
-    print(f"tim {len(all_products)} ma san pham")
-    
-    yearly_data = {}
-    for product_idx, product in enumerate(sorted(all_products), 1):
-        print(f"[{product_idx}/{len(all_products)}] ma {product}")
+            # Đọc dữ liệu cột M,J,W
+            df = pd.read_excel(file_path, sheet_name=sheet_name, usecols="J,M,W", skiprows=1)
+            df.columns = ["Tổng tiền","Mã Line","Phân loại"]
+            print(f"  Raw data shape: {df.shape}")
+            #bo header + NaN
+            df = df.dropna(subset=["Mã Line"]).reset_index(drop=True)
+            print(f"  Sau drop NaN: {df.shape}")
+            print(f"  Mẫu RAW Mã Line: {df['Mã Line'].head(3).tolist()}")
+            print(f"  Mẫu RAW Tổng tiền: {df['Tổng tiền'].head(3).tolist()}")
+            
 
-        for month_folder in months:
+            df["Mã Line"] = df["Mã Line"].astype(str).str.strip()
+            # Lọc bỏ mã 312 và NaN
+            month_codes = [code for code in df["Mã Line"].unique() if code != "312" and code != "Mã Line" and code != "nan"]
+            
+            # DEBUG: In + them tất cả mã Line unique của tháng này
+            for code in month_codes:
+                if code not in all_products:
+                    all_products.append(code)
+                    print(f"    + NEW CODE: {code}")
+            
+            print(f"  Tháng này: {len(month_codes)} mã")
+            print(f"  Tổng cộng: {len(all_products)} mã") 
+                        
+
+        except Exception as e:
+            print(f" loi doc file {e}")
+            continue
+
+    print(f"\n=== TỔNG KẾT CUỐI: {len(all_products)} MÃ ===")
+    all_products = sorted(all_products, key=lambda x: int(x) if x.isdigit() else 0)
+    print("Danh sách mã (đã sort):", all_products[:10], "...")
+    
+
+    #tinh tong cho tung ma 
+    print("\n=== TÍNH BM/PM/CM/TH CHO TỪNG MÃ ===")
+    yearly_data = {}
+
+    for product_idx, product in enumerate(sorted(all_products), 1):
+        print(f"\n[{product_idx}/{len(all_products)}] Tinh Ma {product}")
+        yearly_data[product] = {}
+
+        for month_idx, month_folder in enumerate(months, 1):
+            print(f"  [{month_idx}/{len(months)}] {month_folder}", end=" -> ")
             month_path = os.path.join(ACTUAL_ROOT, month_folder)
             #excel_files = [f for f in os.listdir(month_path) if re.match(r"1\.\s*Theo\s*dõi\s*Xuất\s*kho\s*T\d+\.xlsx", f)]
             excel_file = None
             for f in os.listdir(month_path):
                 if f.endswith(".xlsx") and "Theo dõi Xuất kho" in f:
-                    excel_file = f
+                    excel_file = f 
                     break
             if not excel_file:
-                yearly_data.setdefault(product, {}).setdefault(
-                    month_folder, {c: 0 for c in CATEGORIES}
-                )
+                yearly_data[product][month_folder] = {c: 0 for c in CATEGORIES}
                 continue
+
             file_path = os.path.join(month_path, excel_file)
 
             excel = pd.ExcelFile(file_path)
@@ -164,70 +182,57 @@ def process_actual(fiscal_year = "FY25"):
                     sheet_name = sheet
                     break
             if not sheet_name:
-                yearly_data.setdefault(product, {}).setdefault(
-                    month_folder, {c: 0 for c in CATEGORIES}
-                )
+                print("khong co sheet")
+                yearly_data[product][month_folder] = {c: 0 for c in CATEGORIES}
                 continue
-           
+
             try:
+                #dung thu tu
                 df = pd.read_excel(file_path, sheet_name=sheet_name, usecols="J,M,W")
-                df.columns = ["Tổng tiền", "Mã Line", "Phân loại"]
+                df.columns = ["Tổng tiền","Mã Line","Phân loại"]
                 
                 # CHỈ LẤY DÒNG CỦA MÃ NÀY
-                df["Ma_str"] = df["Mã Line"].astype(str).str.strip()
-                df_product = df[df["Ma_str"] == product]
+                df["Mã Line"] = df["Mã Line"].astype(str).str.strip()
+                df_product = df[df["Mã Line"] == product]
                 print("===="*10)
                 print(df_product)
                 print("===="*10)
+
+                print(f"({len(df_product)} dòng)", end=" -> ")
+
                 df_product = df_product[df_product["Mã Line"] != 312]
-                
                 df_product["CatKey"] = df_product["Phân loại"].apply(normalize_category)
                 df_product = df_product.dropna(subset=["CatKey"])
                 
+                print(f"({len(df_product)} dòng hợp lệ)", end=" -> ")
                 # Tính tổng riêng từng phân loại
                 month_totals = {c: 0 for c in CATEGORIES}
                 if not df_product.empty:
                     grouped = df_product.groupby("CatKey")["Tổng tiền"].sum()
-                    #grouped = df_product.groupby("CatKey")["Tổng tiền"].sum().reset_index()
-                    #for _, row in grouped.iterrows():
-                    #    cat = row["CatKey"]
-                    #    if cat in CATEGORIES:
-                    #        month_totals[cat] = float(row["Tổng tiền"])
                     for cat in CATEGORIES:
                         if cat in grouped.index:
                             month_totals[cat] = float(grouped[cat])
-                    print(
-                        f"  Ma {product}, {month_folder}: "
-                        f"BM={month_totals['BM']:,.0f}, "
-                        f"PM={month_totals['PM']:,.0f}, "
-                        f"CM={month_totals['CM']:,.0f}, "
-                        f"TH={month_totals['TH']:,.0f}"
-                    )
-                yearly_data.setdefault(product, {}).setdefault(month_folder, month_totals)
+                    print(f"BM={month_totals['BM']:,.0f} PM={month_totals['PM']:,.0f} "
+                      f"CM={month_totals['CM']:,.0f} TH={month_totals['TH']:,.0f}")
+                else:
+                    print("KHONG CO PHAN LOAI HOP LE")
+                yearly_data[product][month_folder] = month_totals
                 
             except Exception as e:
-                yearly_data.setdefault(product, {}).setdefault(
-                    month_folder, {c: 0 for c in CATEGORIES}
-                )
+                print(f"Loi: {e}")
+                yearly_data[product][month_folder] = {c: 0 for c in CATEGORIES}
 
-        month_map = yearly_data[product]
+        print(f"\n  GHI FILE row.{product}.{fiscal_year}.xlsx")
         wb = Workbook()
         ws = wb.active
         ws.title = f"Dữ liệu {fiscal_year}"
         #header: Month | BM | PM | CM | TH
         ws.append(["Month"] + CATEGORIES)
         
-        for month_folder in sorted(months):
-            month_data = month_map.get(month_folder, {c: 0 for c in CATEGORIES})
-
+        for month_folder in months:
+            month_data = yearly_data[product][month_folder]
             #tao dong: [Thang, bm_tong, pm_tong, cm_tong, th_tong]
-            row_data = [
-                month_folder,
-                month_data.get("BM", 0),
-                month_data.get("PM", 0),
-                month_data.get("CM", 0),
-                month_data.get("TH", 0),
-            ]
+            row_data = [month_folder] + [month_data[c] for c in CATEGORIES]
             ws.append(row_data)
 
         #luu file row.<ma>.FY25.xlsx
