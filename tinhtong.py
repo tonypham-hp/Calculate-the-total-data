@@ -131,7 +131,7 @@ def process_actual(fiscal_year = "FY25"):
 
             df["Mã Line"] = df["Mã Line"].astype(str).str.strip()
             # Lọc bỏ mã 312 và NaN
-            month_codes = [code for code in df["Mã Line"].unique() if code != "312" and code != "Mã Line" and code != "nan"]
+            month_codes = [code for code in df["Mã Line"].unique() if code != "Mã Line" and code != "nan"]
             
             # DEBUG: In + them tất cả mã Line unique của tháng này
             for code in month_codes:
@@ -193,14 +193,14 @@ def process_actual(fiscal_year = "FY25"):
                 
                 # CHỈ LẤY DÒNG CỦA MÃ NÀY
                 df["Mã Line"] = df["Mã Line"].astype(str).str.strip()
-                df_product = df[df["Mã Line"] == product]
+                df_product = df[df["Mã Line"] == product].copy()
                 print("===="*10)
-                print(df_product)
+                sample = df_product[["Tổng tiền", "Mã Line", "Phân loại"]].head(10).reset_index(drop=True)
+                print(sample.to_string(index=True))
                 print("===="*10)
-
                 print(f"({len(df_product)} dòng)", end=" -> ")
 
-                df_product = df_product[df_product["Mã Line"] != 312]
+                #df_product = df_product[df_product["Mã Line"] != 312]
                 df_product["CatKey"] = df_product["Phân loại"].apply(normalize_category)
                 df_product = df_product.dropna(subset=["CatKey"])
                 
